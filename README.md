@@ -99,6 +99,7 @@ Respuesta: `{ images: [...], prompts: [...], tipo, enhanced, usedBrandProfile }`
 
 ## Notas
 
+- Generación de imágenes con **Gemini 3 Pro Image** ("Nano Banana Pro") a 2K por defecto: mejor calidad y mucho mejor renderizado de texto que versiones anteriores. Admite hasta 10 imágenes de referencia por generación (14 es el máximo del modelo). Configurable vía `GEMINI_IMAGE_MODEL` / `GEMINI_IMAGE_SIZE` en `.env` — ver `.env.example`.
 - El manual de marca admite PDFs de hasta **50 MB**: los pequeños se envían embebidos y los grandes se suben por la Files API de Gemini (se eliminan de Gemini tras el análisis).
 - El perfil de marca y los grupos se guardan en `data/` (fuera de git) y sobreviven reinicios del servidor.
 - Las imágenes de referencia se redimensionan en el navegador (máx. 1568 px) antes de enviarse.

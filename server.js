@@ -111,7 +111,7 @@ app.post("/api/generate", async (req, res) => {
       if (!group) return res.status(400).json({ error: "El grupo de ejemplos elegido no existe." });
       refs = [...group.images, ...refs];
     }
-    refs = refs.slice(0, 6);
+    refs = refs.slice(0, 10);
 
     const brand = store.getBrand();
     const brandProfile = brand?.profile || null;
