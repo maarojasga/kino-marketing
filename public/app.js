@@ -383,7 +383,7 @@ generateBtn.addEventListener("click", async () => {
   }
 });
 
-function renderResults({ images, prompts, tipo }) {
+function renderResults({ images, prompts, tipo, verificacion = [] }) {
   resultsPanel.hidden = false;
   gallery.innerHTML = "";
 
@@ -408,6 +408,24 @@ function renderResults({ images, prompts, tipo }) {
       badge.className = "slide-badge";
       badge.textContent = `Slide ${i + 1}/${images.length}`;
       cap.appendChild(badge);
+    }
+
+    // Verificador de ortografía
+    const v = verificacion[i];
+    if (v?.verificada) {
+      const spell = document.createElement("span");
+      if (v.ok) {
+        spell.className = "spell-badge ok";
+        spell.textContent = v.reintentada ? "✓ Texto corregido" : "✓ Texto verificado";
+        spell.title = v.reintentada
+          ? "Se detectaron errores de ortografía y la imagen se regeneró corregida."
+          : "Ortografía verificada (español/inglés).";
+      } else {
+        spell.className = "spell-badge warn";
+        spell.textContent = "⚠ Revisar texto";
+        spell.title = `Posibles errores: ${(v.errores || []).join("; ")}`;
+      }
+      cap.appendChild(spell);
     }
     const link = document.createElement("a");
     link.href = src;

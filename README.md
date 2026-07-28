@@ -20,6 +20,7 @@ Tema + modo (General / Control total) ──────────────
 4. **Dos modos de generación**:
    - **✨ General**: todo se genera automáticamente — la IA decide composición y textos.
    - **🎛 Control total**: tú defines por cada imagen/slide el **texto exacto** que debe aparecer (o ninguno) y **qué mostrar**.
+5. **Verificador de ortografía** — Tras generar cada imagen, la skill lee su texto, detecta el idioma (español o inglés) y verifica ortografía, tildes y letras deformadas. Si encuentra errores, **regenera la imagen automáticamente** con la corrección; en modo control también comprueba que el texto aparezca exactamente como lo escribiste. El resultado se muestra con una insignia por imagen (✓ verificado / ✓ corregido / ⚠ revisar).
 
 ## Requisitos
 

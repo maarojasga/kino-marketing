@@ -2,7 +2,12 @@ import "dotenv/config";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateImages, generateSequence, buildPrompts, geminiAvailable } from "./lib/gemini.js";
+import {
+  generateImagesVerified,
+  generateSequenceVerified,
+  buildPrompts,
+  geminiAvailable,
+} from "./lib/gemini.js";
 import { SKILL } from "./lib/skill.js";
 import { extractBrandProfile } from "./lib/brand.js";
 import { store } from "./lib/store.js";
@@ -141,16 +146,27 @@ app.post("/api/generate", async (req, res) => {
       prompts = SKILL.construirPrompts(tema.trim(), skillOptions);
     }
 
-    let images;
+    // Textos exactos esperados (modo control) para el verificador de ortografía
+    const itemsList = Array.isArray(items) ? items : [];
+    const expectedTexts =
+      modo === "control" ? itemsList.map((it) => (it?.texto || "").trim() || null) : [];
+
+    let images, verificacion;
     if (tipo === "carrusel") {
-      images = await generateSequence({ prompts, referenceImages: refs, aspectRatio });
+      ({ images, verificacion } = await generateSequenceVerified({
+        prompts,
+        referenceImages: refs,
+        aspectRatio,
+        expectedTexts,
+      }));
     } else {
-      images = await generateImages({
+      ({ images, verificacion } = await generateImagesVerified({
         prompt: prompts[0],
         referenceImages: refs,
         count: n,
         aspectRatio,
-      });
+        expectedText: expectedTexts[0] || null,
+      }));
     }
 
     if (!images || images.length === 0) {
@@ -159,7 +175,14 @@ app.post("/api/generate", async (req, res) => {
       });
     }
 
-    res.json({ images, prompts, enhanced, tipo, usedBrandProfile: Boolean(brandProfile) });
+    res.json({
+      images,
+      verificacion,
+      prompts,
+      enhanced,
+      tipo,
+      usedBrandProfile: Boolean(brandProfile),
+    });
   } catch (err) {
     console.error("Error en /api/generate:", err);
     res.status(500).json({ error: err.message || "Error interno del servidor." });
