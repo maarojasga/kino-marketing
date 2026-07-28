@@ -131,11 +131,24 @@ app.post("/api/generate", async (req, res) => {
       items: Array.isArray(items) ? items : [],
     };
 
+    // A partir de aquí la respuesta se transmite como NDJSON: una línea de
+    // progreso por evento y una línea final "done" (o "error"). Las
+    // validaciones de arriba ya respondieron con JSON plano si hacía falta,
+    // así que el cliente distingue ambos modos por el Content-Type.
+    res.writeHead(200, {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "X-Accel-Buffering": "no",
+    });
+    const sendProgress = (message) => {
+      res.write(JSON.stringify({ type: "progress", message }) + "\n");
+    };
+
     // La skill construye los prompts con Gemini; si falla, plantilla determinista
     let prompts;
     let enhanced = false;
     try {
-      prompts = await buildPrompts({ tema: tema.trim(), ...skillOptions });
+      prompts = await buildPrompts({ tema: tema.trim(), ...skillOptions, onProgress: sendProgress });
       enhanced = true;
     } catch (err) {
       console.warn("Skill con Gemini falló, se usa la plantilla de respaldo:", err.message);
@@ -154,6 +167,7 @@ app.post("/api/generate", async (req, res) => {
         referenceImages: refs,
         aspectRatio,
         expectedTexts,
+        onProgress: sendProgress,
       }));
     } else {
       ({ images, verificacion } = await generarImagenesVerificadas({
@@ -162,26 +176,44 @@ app.post("/api/generate", async (req, res) => {
         count: n,
         aspectRatio,
         expectedText: expectedTexts[0] || null,
+        onProgress: sendProgress,
       }));
     }
 
     if (!images || images.length === 0) {
-      return res.status(502).json({
-        error: "El modelo no devolvió imágenes. Intenta reformular el tema o usar menos referencias.",
-      });
+      res.write(
+        JSON.stringify({
+          type: "error",
+          error: "El modelo no devolvió imágenes. Intenta reformular el tema o usar menos referencias.",
+        }) + "\n"
+      );
+      return res.end();
     }
 
-    res.json({
-      images,
-      verificacion,
-      prompts,
-      enhanced,
-      tipo,
-      usedBrandProfile: Boolean(brandProfile),
-    });
+    res.write(
+      JSON.stringify({
+        type: "done",
+        images,
+        verificacion,
+        prompts,
+        enhanced,
+        tipo,
+        usedBrandProfile: Boolean(brandProfile),
+      }) + "\n"
+    );
+    res.end();
   } catch (err) {
     console.error("Error en /api/generate:", err);
-    res.status(500).json({ error: err.message || "Error interno del servidor." });
+    if (res.headersSent) {
+      try {
+        res.write(JSON.stringify({ type: "error", error: err.message || "Error interno del servidor." }) + "\n");
+      } catch {
+        // la conexión ya pudo haberse cerrado
+      }
+      res.end();
+    } else {
+      res.status(500).json({ error: err.message || "Error interno del servidor." });
+    }
   }
 });
 

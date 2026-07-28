@@ -1,6 +1,15 @@
 const MAX_GROUP_IMAGES = 10;
 const MAX_DIM = 1568; // se redimensiona en el navegador para aligerar las peticiones
 
+// Iconos SVG en línea (sin emojis) para contenido generado dinámicamente.
+const ICONS = {
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  alertTriangle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+};
+
 // --- Referencias a elementos ---
 const $ = (id) => document.getElementById(id);
 
@@ -46,6 +55,12 @@ function setStatus(el, msg, kind) {
   el.className = `status ${kind || ""}`.trim();
 }
 
+/** Estado "en curso": icono giratorio + mensaje, para progreso en vivo. */
+function setLoadingStatus(el, msg) {
+  setStatus(el, msg, "");
+  el.classList.add("loading");
+}
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -85,7 +100,7 @@ async function init() {
   try {
     const s = await fetch("/api/status").then((r) => r.json());
     if (!s.geminiConfigured) {
-      setStatus(statusEl, "⚠️ El servidor no tiene GEMINI_API_KEY configurada. Revisa el archivo .env.", "error");
+      setStatus(statusEl, "El servidor no tiene GEMINI_API_KEY configurada. Revisa el archivo .env.", "error");
     }
     if (s.brand) {
       const brand = await fetch("/api/brand-manual").then((r) => r.json());
@@ -114,8 +129,7 @@ brandInput.addEventListener("change", async () => {
     return;
   }
 
-  setStatus(brandStatus, "Analizando el manual de marca con IA…", "");
-  brandStatus.classList.add("loading");
+  setLoadingStatus(brandStatus, "Analizando el manual de marca con IA…");
   pickBrand.disabled = true;
 
   try {
@@ -128,9 +142,9 @@ brandInput.addEventListener("change", async () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
     showBrand(data);
-    setStatus(brandStatus, "✅ Perfil de marca extraído. Se aplicará a todas las generaciones.", "ok");
+    setStatus(brandStatus, "Perfil de marca extraído. Se aplicará a todas las generaciones.", "ok");
   } catch (err) {
-    setStatus(brandStatus, `❌ ${err.message}`, "error");
+    setStatus(brandStatus, err.message, "error");
   } finally {
     brandStatus.classList.remove("loading");
     pickBrand.disabled = false;
@@ -187,7 +201,8 @@ function renderGroupThumbs() {
     const img = document.createElement("img");
     img.src = src;
     const btn = document.createElement("button");
-    btn.textContent = "✕";
+    btn.innerHTML = ICONS.x;
+    btn.title = "Quitar";
     btn.addEventListener("click", () => {
       pendingGroupImages.splice(i, 1);
       renderGroupThumbs();
@@ -208,13 +223,13 @@ saveGroup.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
-    setStatus(groupStatus, `✅ Grupo "${data.name}" guardado (${data.count} imágenes).`, "ok");
+    setStatus(groupStatus, `Grupo "${data.name}" guardado (${data.count} imágenes).`, "ok");
     groupName.value = "";
     pendingGroupImages = [];
     renderGroupThumbs();
     await refreshGroups(data.id);
   } catch (err) {
-    setStatus(groupStatus, `❌ ${err.message}`, "error");
+    setStatus(groupStatus, err.message, "error");
   } finally {
     updateSaveGroupState();
   }
@@ -238,7 +253,7 @@ async function refreshGroups(selectId) {
       info.innerHTML = `<strong>${escapeHtml(g.name)}</strong><br><small>${g.count} imagen(es)</small>`;
       const del = document.createElement("button");
       del.className = "danger-link";
-      del.textContent = "Eliminar";
+      del.innerHTML = ICONS.trash + " Eliminar";
       del.addEventListener("click", async () => {
         await fetch(`/api/groups/${g.id}`, { method: "DELETE" });
         refreshGroups();
@@ -333,6 +348,52 @@ function collectItems() {
 
 // ============ Generación ============
 
+/**
+ * Lee la respuesta de /api/generate como NDJSON (una línea JSON por evento)
+ * y llama a onProgress(mensaje) por cada línea de tipo "progress". Devuelve
+ * el payload final del evento "done".
+ */
+async function streamGenerate(body, onProgress) {
+  const res = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  // Errores de validación temprana: JSON plano, sin streaming.
+  const contentType = res.headers.get("content-type") || "";
+  if (!res.ok || !contentType.includes("ndjson")) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Error ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalPayload = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let newlineIndex;
+    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (!line) continue;
+
+      const evt = JSON.parse(line);
+      if (evt.type === "progress") onProgress(evt.message);
+      else if (evt.type === "error") throw new Error(evt.error || "Error generando contenido.");
+      else if (evt.type === "done") finalPayload = evt;
+    }
+  }
+
+  if (!finalPayload) throw new Error("El servidor no devolvió resultados.");
+  return finalPayload;
+}
+
 generateBtn.addEventListener("click", async () => {
   const tema = temaEl.value.trim();
   if (!tema) {
@@ -345,17 +406,11 @@ generateBtn.addEventListener("click", async () => {
   const modo = currentMode();
 
   generateBtn.disabled = true;
-  const msg = tipo === "carrusel"
-    ? "Generando carrusel… las slides se crean en orden, puede tardar unos minutos."
-    : "Generando imágenes… esto puede tardar hasta un minuto.";
-  setStatus(statusEl, msg, "");
-  statusEl.classList.add("loading");
+  setLoadingStatus(statusEl, "Kino está preparando tu solicitud…");
 
   try {
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const data = await streamGenerate(
+      {
         tema,
         tipo,
         count: parseInt(countEl.value, 10),
@@ -364,17 +419,15 @@ generateBtn.addEventListener("click", async () => {
         groupId: groupSelect.value || null,
         modo,
         items: modo === "control" ? collectItems() : [],
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      },
+      (message) => setLoadingStatus(statusEl, message)
+    );
 
     renderResults(data);
     const nota = data.usedBrandProfile ? " (con perfil de marca)" : "";
-    setStatus(statusEl, `✅ ${data.images.length} imagen(es) generada(s)${nota}.`, "ok");
+    setStatus(statusEl, `${data.images.length} imagen(es) generada(s)${nota}.`, "ok");
   } catch (err) {
-    setStatus(statusEl, `❌ ${err.message}`, "error");
+    setStatus(statusEl, err.message, "error");
   } finally {
     statusEl.classList.remove("loading");
     generateBtn.disabled = false;
@@ -408,14 +461,14 @@ function renderResults({ images, tipo, verificacion = [] }) {
         .join("; ");
       if (v.ok) {
         spell.className = "spell-badge ok";
-        spell.textContent = v.intentos > 0 ? "✓ Texto corregido" : "✓ Texto verificado";
+        spell.innerHTML = ICONS.check + (v.intentos > 0 ? " Texto corregido" : " Texto verificado");
         spell.title =
           v.intentos > 0
             ? "Se detectaron errores de ortografía y la imagen fue corregida automáticamente."
             : "Ortografía verificada (español/inglés).";
       } else {
         spell.className = "spell-badge warn";
-        spell.textContent = "⚠ Revisar texto";
+        spell.innerHTML = ICONS.alertTriangle + " Revisar texto";
         spell.title =
           `Se intentó corregir ${v.intentos} vez/veces sin éxito total.` +
           (detalle ? ` Errores restantes: ${detalle}` : "");
@@ -425,7 +478,7 @@ function renderResults({ images, tipo, verificacion = [] }) {
     const link = document.createElement("a");
     link.href = src;
     link.download = `kino-${stamp}-${i + 1}.png`;
-    link.textContent = "⬇ Descargar";
+    link.innerHTML = ICONS.download + " Descargar";
     cap.appendChild(link);
     fig.append(img, cap);
     gallery.appendChild(fig);
