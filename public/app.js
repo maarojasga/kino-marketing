@@ -49,6 +49,10 @@ let pendingGroupImages = [];
 
 // ============ Utilidades ============
 
+function log(...args) {
+  console.log("[Kino]", ...args);
+}
+
 function setStatus(el, msg, kind) {
   el.hidden = !msg;
   el.textContent = msg;
@@ -99,6 +103,7 @@ function resizeImageToDataUrl(file) {
 async function init() {
   try {
     const s = await fetch("/api/status").then((r) => r.json());
+    log("Estado del servidor:", s);
     if (!s.geminiConfigured) {
       setStatus(statusEl, "El servidor no tiene GEMINI_API_KEY configurada. Revisa el archivo .env.", "error");
     }
@@ -106,7 +111,9 @@ async function init() {
       const brand = await fetch("/api/brand-manual").then((r) => r.json());
       showBrand(brand);
     }
-  } catch {}
+  } catch (err) {
+    console.error("[Kino] No se pudo cargar el estado inicial:", err);
+  }
   await refreshGroups();
   renderControlFields();
 }
@@ -133,6 +140,7 @@ brandInput.addEventListener("change", async () => {
   pickBrand.disabled = true;
 
   try {
+    log(`Manual de marca: subiendo "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)} MB)…`);
     const pdf = await fileToDataUrl(file);
     const res = await fetch("/api/brand-manual", {
       method: "POST",
@@ -141,9 +149,11 @@ brandInput.addEventListener("change", async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    log("Manual de marca: perfil recibido.", data);
     showBrand(data);
     setStatus(brandStatus, "Perfil de marca extraído. Se aplicará a todas las generaciones.", "ok");
   } catch (err) {
+    console.error("[Kino] Error analizando el manual de marca:", err);
     setStatus(brandStatus, err.message, "error");
   } finally {
     brandStatus.classList.remove("loading");
@@ -153,6 +163,7 @@ brandInput.addEventListener("change", async () => {
 
 deleteBrand.addEventListener("click", async () => {
   await fetch("/api/brand-manual", { method: "DELETE" });
+  log("Manual de marca eliminado.");
   brandLoaded.hidden = true;
   brandEmpty.hidden = false;
   setStatus(brandStatus, "Manual eliminado.", "");
@@ -179,7 +190,8 @@ groupFileInput.addEventListener("change", async () => {
     }
     try {
       pendingGroupImages.push(await resizeImageToDataUrl(file));
-    } catch {
+    } catch (err) {
+      console.error(`[Kino] No se pudo leer "${file.name}":`, err);
       setStatus(groupStatus, `No se pudo leer "${file.name}".`, "error");
     }
   }
@@ -223,12 +235,14 @@ saveGroup.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    log(`Grupo guardado: "${data.name}" (${data.count} imágenes).`);
     setStatus(groupStatus, `Grupo "${data.name}" guardado (${data.count} imágenes).`, "ok");
     groupName.value = "";
     pendingGroupImages = [];
     renderGroupThumbs();
     await refreshGroups(data.id);
   } catch (err) {
+    console.error("[Kino] Error guardando el grupo:", err);
     setStatus(groupStatus, err.message, "error");
   } finally {
     updateSaveGroupState();
@@ -256,6 +270,7 @@ async function refreshGroups(selectId) {
       del.innerHTML = ICONS.trash + " Eliminar";
       del.addEventListener("click", async () => {
         await fetch(`/api/groups/${g.id}`, { method: "DELETE" });
+        log(`Grupo eliminado: "${g.name}".`);
         refreshGroups();
       });
       card.append(info, del);
@@ -274,7 +289,9 @@ async function refreshGroups(selectId) {
     if ([...groupSelect.options].some((o) => o.value === current)) {
       groupSelect.value = current;
     }
-  } catch {}
+  } catch (err) {
+    console.error("[Kino] No se pudieron cargar los grupos:", err);
+  }
 }
 
 function escapeHtml(s) {
@@ -354,6 +371,7 @@ function collectItems() {
  * el payload final del evento "done".
  */
 async function streamGenerate(body, onProgress) {
+  log("POST /api/generate", body);
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -364,6 +382,7 @@ async function streamGenerate(body, onProgress) {
   const contentType = res.headers.get("content-type") || "";
   if (!res.ok || !contentType.includes("ndjson")) {
     const data = await res.json().catch(() => ({}));
+    log(`Respuesta ${res.status} (${contentType || "sin content-type"}), sin streaming.`);
     throw new Error(data.error || `Error ${res.status}`);
   }
 
@@ -384,9 +403,16 @@ async function streamGenerate(body, onProgress) {
       if (!line) continue;
 
       const evt = JSON.parse(line);
-      if (evt.type === "progress") onProgress(evt.message);
-      else if (evt.type === "error") throw new Error(evt.error || "Error generando contenido.");
-      else if (evt.type === "done") finalPayload = evt;
+      if (evt.type === "progress") {
+        log(evt.message);
+        onProgress(evt.message);
+      } else if (evt.type === "error") {
+        log("Error del servidor:", evt.error);
+        throw new Error(evt.error || "Error generando contenido.");
+      } else if (evt.type === "done") {
+        log(`Resultado recibido: ${evt.images?.length ?? 0} imagen(es).`);
+        finalPayload = evt;
+      }
     }
   }
 
@@ -427,6 +453,7 @@ generateBtn.addEventListener("click", async () => {
     const nota = data.usedBrandProfile ? " (con perfil de marca)" : "";
     setStatus(statusEl, `${data.images.length} imagen(es) generada(s)${nota}.`, "ok");
   } catch (err) {
+    console.error("[Kino] Error generando contenido:", err);
     setStatus(statusEl, err.message, "error");
   } finally {
     statusEl.classList.remove("loading");

@@ -12,6 +12,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Logs de terminal: cada línea con hora + prefijo, para poder seguir el
+// rastro de una generación completa (params → progreso → resultado/error).
+function log(...args) {
+  console.log(`[Kino ${new Date().toLocaleTimeString("es")}]`, ...args);
+}
+function logError(...args) {
+  console.error(`[Kino ${new Date().toLocaleTimeString("es")}] ✗`, ...args);
+}
+
 // Imágenes y PDFs viajan en base64 dentro del JSON
 // (un PDF de 50 MB ocupa ~67 MB en base64, más margen)
 app.use(express.json({ limit: "120mb" }));
@@ -32,11 +41,15 @@ app.post("/api/brand-manual", async (req, res) => {
     const { fileName, pdf } = req.body || {};
     if (!pdf) return res.status(400).json({ error: "Falta el PDF del manual de marca." });
 
+    const sizeMB = ((pdf.length * 3) / 4 / 1024 / 1024).toFixed(1);
+    log(`Manual de marca: analizando "${fileName || "manual.pdf"}" (~${sizeMB} MB)…`);
+
     const profile = await extractBrandProfile(pdf);
     const brand = store.setBrand({ fileName: fileName || "manual.pdf", profile });
+    log(`Manual de marca: perfil extraído (${profile.length} caracteres).`);
     res.json({ fileName: brand.fileName, profile: brand.profile, updatedAt: brand.updatedAt });
   } catch (err) {
-    console.error("Error analizando manual de marca:", err);
+    logError("Analizando manual de marca:", err);
     res.status(500).json({ error: err.message || "No se pudo analizar el manual." });
   }
 });
@@ -49,6 +62,7 @@ app.get("/api/brand-manual", (_req, res) => {
 
 app.delete("/api/brand-manual", (_req, res) => {
   store.clearBrand();
+  log("Manual de marca eliminado.");
   res.json({ ok: true });
 });
 
@@ -70,35 +84,45 @@ app.post("/api/groups", (req, res) => {
     return res.status(400).json({ error: "Máximo 10 imágenes por grupo." });
   }
   const group = store.addGroup(name.trim(), images);
+  log(`Grupo creado: "${group.name}" (${images.length} imagen(es)).`);
   res.json(group);
 });
 
 app.delete("/api/groups/:id", (req, res) => {
   const ok = store.deleteGroup(req.params.id);
   if (!ok) return res.status(404).json({ error: "Grupo no encontrado." });
+  log(`Grupo eliminado: ${req.params.id}`);
   res.json({ ok: true });
 });
 
 // --- Generación ---
 
 app.post("/api/generate", async (req, res) => {
-  try {
-    const {
-      tema,
-      tipo = "imagen", // "imagen" | "carrusel"
-      count = 1, // imágenes sueltas: variaciones
-      numSlides = 3, // carrusel: nº de slides
-      aspectRatio = "1:1",
-      groupId = null, // categoría de ejemplos a usar
-      modo = "general", // "general" | "control"
-      items = [], // modo control: [{ texto, descripcion }]
-      referenceImages = [], // referencias adicionales puntuales (opcional)
-    } = req.body || {};
+  const {
+    tema,
+    tipo = "imagen", // "imagen" | "carrusel"
+    count = 1, // imágenes sueltas: variaciones
+    numSlides = 3, // carrusel: nº de slides
+    aspectRatio = "1:1",
+    groupId = null, // categoría de ejemplos a usar
+    modo = "general", // "general" | "control"
+    items = [], // modo control: [{ texto, descripcion }]
+    referenceImages = [], // referencias adicionales puntuales (opcional)
+  } = req.body || {};
 
+  log(
+    `POST /api/generate — tema="${(tema || "").slice(0, 60)}" tipo=${tipo} modo=${modo} ` +
+      `formato=${aspectRatio} ${tipo === "carrusel" ? `slides=${numSlides}` : `variaciones=${count}`} ` +
+      `grupo=${groupId || "ninguno"} refs_sueltas=${referenceImages.length}`
+  );
+
+  try {
     if (!tema || typeof tema !== "string" || !tema.trim()) {
+      log("Rechazado: falta el tema.");
       return res.status(400).json({ error: "El tema es obligatorio." });
     }
-    if (!process.env.GEMINI_API_KEY) {
+    if (!geminiAvailable()) {
+      log("Rechazado: GEMINI_API_KEY no configurada.");
       return res.status(500).json({
         error: "Falta configurar GEMINI_API_KEY en el archivo .env del servidor.",
       });
@@ -108,13 +132,21 @@ app.post("/api/generate", async (req, res) => {
     let refs = [...referenceImages];
     if (groupId) {
       const group = store.getGroup(groupId);
-      if (!group) return res.status(400).json({ error: "El grupo de ejemplos elegido no existe." });
+      if (!group) {
+        log(`Rechazado: el grupo ${groupId} no existe.`);
+        return res.status(400).json({ error: "El grupo de ejemplos elegido no existe." });
+      }
       refs = [...group.images, ...refs];
+      log(`Grupo "${group.name}" aporta ${group.images.length} imagen(es) de referencia.`);
     }
     refs = refs.slice(0, 10);
 
     const brand = store.getBrand();
     const brandProfile = brand?.profile || null;
+    log(
+      `Contexto: ${refs.length} imagen(es) de referencia en total, ` +
+        `${brandProfile ? "con" : "sin"} perfil de marca.`
+    );
 
     const n = tipo === "carrusel"
       ? Math.min(Math.max(parseInt(numSlides, 10) || 3, 2), 8)
@@ -134,13 +166,17 @@ app.post("/api/generate", async (req, res) => {
     // A partir de aquí la respuesta se transmite como NDJSON: una línea de
     // progreso por evento y una línea final "done" (o "error"). Las
     // validaciones de arriba ya respondieron con JSON plano si hacía falta,
-    // así que el cliente distingue ambos modos por el Content-Type.
+    // así que el cliente distingue ambos modos por el Content-Type. El HTTP
+    // status queda fijo en 200 desde aquí — una falla real más adelante se
+    // reporta como línea "error" dentro del stream, no como status HTTP, así
+    // que sigue esta terminal para ver qué pasó de verdad.
     res.writeHead(200, {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-cache",
       "X-Accel-Buffering": "no",
     });
     const sendProgress = (message) => {
+      log(`  · ${message}`);
       res.write(JSON.stringify({ type: "progress", message }) + "\n");
     };
 
@@ -150,8 +186,9 @@ app.post("/api/generate", async (req, res) => {
     try {
       prompts = await buildPrompts({ tema: tema.trim(), ...skillOptions, onProgress: sendProgress });
       enhanced = true;
+      log(`Prompts construidos por la skill (Gemini): ${prompts.length}.`);
     } catch (err) {
-      console.warn("Skill con Gemini falló, se usa la plantilla de respaldo:", err.message);
+      logError("Skill con Gemini falló, se usa la plantilla de respaldo:", err.message);
       prompts = SKILL.construirPrompts(tema.trim(), skillOptions);
     }
 
@@ -181,6 +218,7 @@ app.post("/api/generate", async (req, res) => {
     }
 
     if (!images || images.length === 0) {
+      logError("El modelo no devolvió ninguna imagen.");
       res.write(
         JSON.stringify({
           type: "error",
@@ -189,6 +227,13 @@ app.post("/api/generate", async (req, res) => {
       );
       return res.end();
     }
+
+    const ok = verificacion.filter((v) => v?.ok).length;
+    const revisar = verificacion.length - ok;
+    log(
+      `Listo: ${images.length} imagen(es) generada(s) — ${ok} con texto verificado, ` +
+        `${revisar} para revisar.`
+    );
 
     res.write(
       JSON.stringify({
@@ -203,7 +248,7 @@ app.post("/api/generate", async (req, res) => {
     );
     res.end();
   } catch (err) {
-    console.error("Error en /api/generate:", err);
+    logError("Fallo en /api/generate:", err);
     if (res.headersSent) {
       try {
         res.write(JSON.stringify({ type: "error", error: err.message || "Error interno del servidor." }) + "\n");
@@ -218,8 +263,12 @@ app.post("/api/generate", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Generador de imágenes escuchando en http://localhost:${PORT}`);
+  log(`Generador de imágenes escuchando en http://localhost:${PORT}`);
+  log(
+    `Modelo de imagen: ${process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image-preview"} · ` +
+      `resolución: ${process.env.GEMINI_IMAGE_SIZE || "2K"}`
+  );
   if (!geminiAvailable()) {
-    console.warn("⚠️  GEMINI_API_KEY no está configurada — la generación fallará hasta configurarla.");
+    logError("GEMINI_API_KEY no está configurada — la generación fallará hasta configurarla.");
   }
 });
