@@ -410,20 +410,26 @@ function renderResults({ images, prompts, tipo, verificacion = [] }) {
       cap.appendChild(badge);
     }
 
-    // Verificador de ortografía
+    // Skill correctora de ortografía
     const v = verificacion[i];
     if (v?.verificada) {
       const spell = document.createElement("span");
+      const detalle = (v.errores || [])
+        .map((e) => `"${e.visto}" → "${e.correccion}"`)
+        .join("; ");
       if (v.ok) {
         spell.className = "spell-badge ok";
-        spell.textContent = v.reintentada ? "✓ Texto corregido" : "✓ Texto verificado";
-        spell.title = v.reintentada
-          ? "Se detectaron errores de ortografía y la imagen se regeneró corregida."
-          : "Ortografía verificada (español/inglés).";
+        spell.textContent = v.intentos > 0 ? "✓ Texto corregido" : "✓ Texto verificado";
+        spell.title =
+          v.intentos > 0
+            ? "Se detectaron errores de ortografía y la imagen fue corregida automáticamente."
+            : "Ortografía verificada (español/inglés).";
       } else {
         spell.className = "spell-badge warn";
         spell.textContent = "⚠ Revisar texto";
-        spell.title = `Posibles errores: ${(v.errores || []).join("; ")}`;
+        spell.title = detalle
+          ? `Errores detectados: ${detalle}`
+          : "No se pudo corregir todo el texto automáticamente.";
       }
       cap.appendChild(spell);
     }

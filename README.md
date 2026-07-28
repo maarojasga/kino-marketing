@@ -20,7 +20,11 @@ Tema + modo (General / Control total) ──────────────
 4. **Dos modos de generación**:
    - **✨ General**: todo se genera automáticamente — la IA decide composición y textos.
    - **🎛 Control total**: tú defines por cada imagen/slide el **texto exacto** que debe aparecer (o ninguno) y **qué mostrar**.
-5. **Verificador de ortografía** — Tras generar cada imagen, la skill lee su texto, detecta el idioma (español o inglés) y verifica ortografía, tildes y letras deformadas. Si encuentra errores, **regenera la imagen automáticamente** con la corrección; en modo control también comprueba que el texto aparezca exactamente como lo escribiste. El resultado se muestra con una insignia por imagen (✓ verificado / ✓ corregido / ⚠ revisar).
+5. **Skill correctora de ortografía** (`lib/corrector.js`) — Cada imagen generada pasa por un ciclo revisar → corregir → re-verificar:
+   - **Revisar**: transcribe letra por letra todo el texto visible, detecta el idioma (español o inglés) y verifica estrictamente ortografía, tildes y palabras deformadas (errores típicos de IA como *"Inscrébte"* en vez de *"Inscríbete"*).
+   - **Corregir**: si hay errores, **edita la imagen** (no la regenera) para arreglar solo el texto, manteniendo diseño, colores y composición idénticos. Hasta 2 intentos de corrección por imagen.
+   - En modo control además comprueba que el texto aparezca exactamente como lo escribiste.
+   - Resultado por imagen: **✓ Texto verificado**, **✓ Texto corregido** o **⚠ Revisar texto** (con el detalle "visto → corrección" al pasar el cursor).
 
 ## Requisitos
 
@@ -85,7 +89,8 @@ Respuesta: `{ images: [...], prompts: [...], tipo, enhanced, usedBrandProfile }`
 ├── server.js          # Servidor Express + endpoints
 ├── lib/
 │   ├── skill.js       # SKILL de marketing: instrucciones + plantillas (imagen y carrusel)
-│   ├── gemini.js      # Todo Gemini: skill, generación de imágenes/carruseles y análisis del manual
+│   ├── corrector.js   # SKILL correctora: revisa ortografía y corrige editando la imagen
+│   ├── gemini.js      # Todo Gemini: skill, generación/edición de imágenes y análisis del manual
 │   ├── brand.js       # Análisis del manual de marca (PDF → perfil de marca)
 │   └── store.js       # Persistencia local (data/store.json): marca + grupos
 └── public/            # Interfaz web (español)

@@ -2,12 +2,8 @@ import "dotenv/config";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  generateImagesVerified,
-  generateSequenceVerified,
-  buildPrompts,
-  geminiAvailable,
-} from "./lib/gemini.js";
+import { buildPrompts, geminiAvailable } from "./lib/gemini.js";
+import { generarImagenesVerificadas, generarSecuenciaVerificada } from "./lib/corrector.js";
 import { SKILL } from "./lib/skill.js";
 import { extractBrandProfile } from "./lib/brand.js";
 import { store } from "./lib/store.js";
@@ -153,14 +149,14 @@ app.post("/api/generate", async (req, res) => {
 
     let images, verificacion;
     if (tipo === "carrusel") {
-      ({ images, verificacion } = await generateSequenceVerified({
+      ({ images, verificacion } = await generarSecuenciaVerificada({
         prompts,
         referenceImages: refs,
         aspectRatio,
         expectedTexts,
       }));
     } else {
-      ({ images, verificacion } = await generateImagesVerified({
+      ({ images, verificacion } = await generarImagenesVerificadas({
         prompt: prompts[0],
         referenceImages: refs,
         count: n,
