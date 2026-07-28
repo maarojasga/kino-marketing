@@ -20,11 +20,12 @@ Tema + modo (General / Control total) ──────────────
 4. **Dos modos de generación**:
    - **✨ General**: todo se genera automáticamente — la IA decide composición y textos.
    - **🎛 Control total**: tú defines por cada imagen/slide el **texto exacto** que debe aparecer (o ninguno) y **qué mostrar**.
-5. **Skill correctora de ortografía** (`lib/corrector.js`) — Cada imagen generada pasa por un ciclo revisar → corregir → re-verificar:
+5. **Skill correctora de ortografía** (`lib/corrector.js`) — Cada imagen generada pasa por un ciclo que no se rinde hasta agotar estrategias:
    - **Revisar**: transcribe letra por letra todo el texto visible, detecta el idioma (español o inglés) y verifica estrictamente ortografía, tildes y palabras deformadas (errores típicos de IA como *"Inscrébte"* en vez de *"Inscríbete"*).
-   - **Corregir**: si hay errores, **edita la imagen** (no la regenera) para arreglar solo el texto, manteniendo diseño, colores y composición idénticos. Hasta 2 intentos de corrección por imagen.
-   - En modo control además comprueba que el texto aparezca exactamente como lo escribiste.
-   - Resultado por imagen: **✓ Texto verificado**, **✓ Texto corregido** o **⚠ Revisar texto** (con el detalle "visto → corrección" al pasar el cursor).
+   - **Corregir por edición**: si hay errores, edita la imagen para arreglar solo el texto, manteniendo diseño, colores y composición idénticos (hasta 2 ediciones).
+   - **Corregir por regeneración**: si la edición no basta, regenera la pieza desde el prompt con los textos correctos como instrucción explícita, carácter por carácter (hasta 2 regeneraciones).
+   - Siempre se entrega la **mejor versión conseguida**; en modo control además comprueba que el texto aparezca exactamente como lo escribiste.
+   - Resultado por imagen: **✓ Texto verificado**, **✓ Texto corregido** o, solo si nada funcionó, **⚠ Revisar texto** (con el detalle "visto → corrección" al pasar el cursor).
 
 ## Requisitos
 

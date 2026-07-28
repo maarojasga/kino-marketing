@@ -427,9 +427,9 @@ function renderResults({ images, prompts, tipo, verificacion = [] }) {
       } else {
         spell.className = "spell-badge warn";
         spell.textContent = "⚠ Revisar texto";
-        spell.title = detalle
-          ? `Errores detectados: ${detalle}`
-          : "No se pudo corregir todo el texto automáticamente.";
+        spell.title =
+          `Se intentó corregir ${v.intentos} vez/veces sin éxito total.` +
+          (detalle ? ` Errores restantes: ${detalle}` : "");
       }
       cap.appendChild(spell);
     }
