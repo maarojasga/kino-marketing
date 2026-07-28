@@ -19,155 +19,167 @@
   </header>
 
   <main>
-    <!-- 1 · Manual de marca -->
-    <section class="panel">
-      <div class="section-head">
-        <span class="step-chip chip-blue">📄</span>
-        <div>
-          <h2>Manual de marca <span class="pill">PDF · Opcional</span></h2>
-          <p class="section-sub">Análisis automático de colores, tipografías y estilo</p>
-        </div>
-      </div>
+    <div class="layout">
+      <!-- Columna izquierda: configuración -->
+      <aside class="sidebar">
+        <p class="col-label">Configuración</p>
 
-      <div id="brandEmpty">
-        <div class="upload-cta" id="brandCta">
-          <p class="hint">Sube tu manual una sola vez — la IA extrae el perfil de tu marca y lo aplica a todas las generaciones.</p>
-          <button type="button" id="pickBrand" class="secondary">📄 Cargar manual de marca</button>
-          <input type="file" id="brandInput" accept="application/pdf" hidden />
-        </div>
-      </div>
-      <div id="brandLoaded" hidden>
-        <div class="brand-ok">
-          <span class="check-chip">✓</span>
-          <div>
-            <p class="brand-file"><strong id="brandName"></strong></p>
-            <p class="section-sub">Perfil de marca extraído y activo en cada generación</p>
+        <!-- Manual de marca -->
+        <section class="panel">
+          <div class="section-head">
+            <span class="step-chip chip-blue">📄</span>
+            <div>
+              <h2>Manual de marca <span class="pill">PDF · Opcional</span></h2>
+              <p class="section-sub">Colores, tipografías y estilo</p>
+            </div>
           </div>
-          <button type="button" id="deleteBrand" class="danger-link">Quitar</button>
-        </div>
-        <details>
-          <summary>Ver perfil de marca</summary>
-          <pre id="brandProfile" class="brand-profile"></pre>
-        </details>
-      </div>
-      <p id="brandStatus" class="status" hidden></p>
-    </section>
 
-    <!-- 2 · Grupos de ejemplos -->
-    <section class="panel">
-      <div class="section-head">
-        <span class="step-chip chip-green">🗂</span>
-        <div>
-          <h2>Grupos de ejemplos <span class="pill">Categorías · Opcional</span></h2>
-          <p class="section-sub">Organiza referencias por categoría y elige cuál usar al generar</p>
-        </div>
-      </div>
-
-      <div class="group-form">
-        <input type="text" id="groupName" placeholder="Nombre del grupo (ej: promociones)" maxlength="60" />
-        <button type="button" id="pickGroupFiles" class="secondary">🖼 Elegir imágenes</button>
-        <input type="file" id="groupFileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
-        <button type="button" id="saveGroup" class="primary sm" disabled>Guardar grupo</button>
-      </div>
-      <div id="groupThumbs" class="thumbs"></div>
-      <div id="groupList" class="group-list"></div>
-      <p id="groupStatus" class="status" hidden></p>
-    </section>
-
-    <!-- 3 · Crear contenido -->
-    <section class="panel">
-      <div class="section-head">
-        <span class="step-chip chip-purple">✨</span>
-        <div>
-          <h2>Crear contenido <span class="pill pill-live">Tiempo real</span></h2>
-          <p class="section-sub">Elige tipo, formato y modo — la skill hace el resto</p>
-        </div>
-      </div>
-
-      <div class="options">
-        <label>
-          <span class="opt-label">Tipo</span>
-          <select id="tipo">
-            <option value="imagen">Imagen suelta</option>
-            <option value="carrusel">Carrusel</option>
-          </select>
-        </label>
-        <label id="countWrap">
-          <span class="opt-label">Variaciones</span>
-          <select id="count">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-        </label>
-        <label id="slidesWrap" hidden>
-          <span class="opt-label">Slides</span>
-          <select id="numSlides">
-            <option value="2">2</option>
-            <option value="3" selected>3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-          </select>
-        </label>
-        <label>
-          <span class="opt-label">Formato</span>
-          <select id="aspectRatio">
-            <option value="1:1">Cuadrado (1:1)</option>
-            <option value="4:5">Vertical feed (4:5)</option>
-            <option value="9:16">Historia / Reel (9:16)</option>
-            <option value="16:9">Horizontal (16:9)</option>
-            <option value="3:4">Retrato (3:4)</option>
-          </select>
-        </label>
-        <label>
-          <span class="opt-label">Categoría de ejemplos</span>
-          <select id="groupSelect">
-            <option value="">Sin ejemplos</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="mode-picker">
-        <label class="mode-option">
-          <input type="radio" name="modo" value="general" checked />
-          <div>
-            <strong>✨ General</strong>
-            <span>Todo automático: la IA decide textos e imágenes.</span>
+          <div id="brandEmpty">
+            <div class="upload-cta" id="brandCta">
+              <p class="hint">Sube tu manual una sola vez — la IA extrae el perfil de tu marca y lo aplica a todas las generaciones.</p>
+              <button type="button" id="pickBrand" class="secondary">📄 Cargar manual de marca</button>
+              <input type="file" id="brandInput" accept="application/pdf" hidden />
+            </div>
           </div>
-        </label>
-        <label class="mode-option">
-          <input type="radio" name="modo" value="control" />
-          <div>
-            <strong>🎛 Control total</strong>
-            <span>Tú defines el texto exacto y qué mostrar en cada pieza.</span>
+          <div id="brandLoaded" hidden>
+            <div class="brand-ok">
+              <span class="check-chip">✓</span>
+              <div>
+                <p class="brand-file"><strong id="brandName"></strong></p>
+                <p class="section-sub">Activo en cada generación</p>
+              </div>
+              <button type="button" id="deleteBrand" class="danger-link">Quitar</button>
+            </div>
+            <details>
+              <summary>Ver perfil de marca</summary>
+              <pre id="brandProfile" class="brand-profile"></pre>
+            </details>
           </div>
-        </label>
+          <p id="brandStatus" class="status" hidden></p>
+        </section>
+
+        <!-- Grupos de ejemplos -->
+        <section class="panel">
+          <div class="section-head">
+            <span class="step-chip chip-green">🗂</span>
+            <div>
+              <h2>Grupos de ejemplos <span class="pill">Categorías · Opcional</span></h2>
+              <p class="section-sub">Organiza referencias por categoría</p>
+            </div>
+          </div>
+
+          <div class="group-form">
+            <input type="text" id="groupName" placeholder="Nombre del grupo (ej: promociones)" maxlength="60" />
+            <button type="button" id="pickGroupFiles" class="secondary">🖼 Elegir imágenes</button>
+            <input type="file" id="groupFileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+            <button type="button" id="saveGroup" class="primary sm" disabled>Guardar grupo</button>
+          </div>
+          <div id="groupThumbs" class="thumbs"></div>
+          <div id="groupList" class="group-list"></div>
+          <p id="groupStatus" class="status" hidden></p>
+        </section>
+      </aside>
+
+      <!-- Columna derecha: crear contenido + resultados -->
+      <div class="content">
+        <p class="col-label">Contenido</p>
+
+        <!-- Crear contenido -->
+        <section class="panel">
+          <div class="section-head">
+            <span class="step-chip chip-purple">✨</span>
+            <div>
+              <h2>Crear contenido <span class="pill pill-live">Tiempo real</span></h2>
+              <p class="section-sub">Elige tipo, formato y modo — la skill hace el resto</p>
+            </div>
+          </div>
+
+          <div class="options">
+            <label>
+              <span class="opt-label">Tipo</span>
+              <select id="tipo">
+                <option value="imagen">Imagen suelta</option>
+                <option value="carrusel">Carrusel</option>
+              </select>
+            </label>
+            <label id="countWrap">
+              <span class="opt-label">Variaciones</span>
+              <select id="count">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <label id="slidesWrap" hidden>
+              <span class="opt-label">Slides</span>
+              <select id="numSlides">
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+              </select>
+            </label>
+            <label>
+              <span class="opt-label">Formato</span>
+              <select id="aspectRatio">
+                <option value="1:1">Cuadrado (1:1)</option>
+                <option value="4:5">Vertical feed (4:5)</option>
+                <option value="9:16">Historia / Reel (9:16)</option>
+                <option value="16:9">Horizontal (16:9)</option>
+                <option value="3:4">Retrato (3:4)</option>
+              </select>
+            </label>
+            <label>
+              <span class="opt-label">Categoría de ejemplos</span>
+              <select id="groupSelect">
+                <option value="">Sin ejemplos</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="mode-picker">
+            <label class="mode-option">
+              <input type="radio" name="modo" value="general" checked />
+              <div>
+                <strong>✨ General</strong>
+                <span>Todo automático: la IA decide textos e imágenes.</span>
+              </div>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="modo" value="control" />
+              <div>
+                <strong>🎛 Control total</strong>
+                <span>Tú defines el texto exacto y qué mostrar en cada pieza.</span>
+              </div>
+            </label>
+          </div>
+
+          <label class="field-label" for="tema">Tema</label>
+          <textarea id="tema" rows="2" placeholder="Ej: beneficios de la medicina funcional para el manejo del estrés"></textarea>
+
+          <div id="controlFields" class="control-fields" hidden></div>
+
+          <button id="generate" class="primary lg">✨ Generar contenido</button>
+          <p id="status" class="status" hidden></p>
+        </section>
+
+        <!-- Resultados -->
+        <section class="panel" id="resultsPanel" hidden>
+          <div class="section-head">
+            <span class="step-chip chip-pink">🖼</span>
+            <div>
+              <h2>Resultados</h2>
+              <p class="section-sub">Texto verificado y corregido automáticamente · descarga individual</p>
+            </div>
+          </div>
+          <div id="gallery" class="gallery"></div>
+        </section>
       </div>
-
-      <label class="field-label" for="tema">Tema</label>
-      <textarea id="tema" rows="2" placeholder="Ej: beneficios de la medicina funcional para el manejo del estrés"></textarea>
-
-      <div id="controlFields" class="control-fields" hidden></div>
-
-      <button id="generate" class="primary lg">✨ Generar contenido</button>
-      <p id="status" class="status" hidden></p>
-    </section>
-
-    <!-- 4 · Resultados -->
-    <section class="panel" id="resultsPanel" hidden>
-      <div class="section-head">
-        <span class="step-chip chip-pink">🖼</span>
-        <div>
-          <h2>Resultados</h2>
-          <p class="section-sub">Texto verificado y corregido automáticamente · descarga individual</p>
-        </div>
-      </div>
-      <div id="gallery" class="gallery"></div>
-    </section>
+    </div>
   </main>
 
   <footer>
