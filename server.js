@@ -12,7 +12,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Imágenes y PDFs viajan en base64 dentro del JSON
-app.use(express.json({ limit: "80mb" }));
+// (un PDF de 50 MB ocupa ~67 MB en base64, más margen)
+app.use(express.json({ limit: "120mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/status", (_req, res) => {

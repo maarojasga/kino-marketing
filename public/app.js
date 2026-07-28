@@ -111,8 +111,8 @@ brandInput.addEventListener("change", async () => {
     setStatus(brandStatus, "El manual debe ser un PDF.", "error");
     return;
   }
-  if (file.size > 25 * 1024 * 1024) {
-    setStatus(brandStatus, "El PDF supera 25 MB. Usa una versión más ligera.", "error");
+  if (file.size > 50 * 1024 * 1024) {
+    setStatus(brandStatus, "El PDF supera 50 MB. Usa una versión más ligera.", "error");
     return;
   }
 

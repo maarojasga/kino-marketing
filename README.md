@@ -92,6 +92,7 @@ Respuesta: `{ images: [...], prompts: [...], tipo, enhanced, usedBrandProfile }`
 
 ## Notas
 
+- El manual de marca admite PDFs de hasta **50 MB**: los pequeños se envían embebidos y los grandes se suben por la Files API de Gemini (se eliminan de Gemini tras el análisis).
 - El perfil de marca y los grupos se guardan en `data/` (fuera de git) y sobreviven reinicios del servidor.
 - Las imágenes de referencia se redimensionan en el navegador (máx. 1568 px) antes de enviarse.
 - Las claves API viven solo en el servidor (`.env`); nunca se exponen al navegador.
