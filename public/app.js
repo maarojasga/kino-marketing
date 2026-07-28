@@ -33,8 +33,6 @@ const controlFields = $("controlFields");
 const generateBtn = $("generate");
 const statusEl = $("status");
 const resultsPanel = $("resultsPanel");
-const promptsDetails = $("promptsDetails");
-const finalPrompts = $("finalPrompts");
 const gallery = $("gallery");
 
 /** Imágenes pendientes para el grupo en creación */
@@ -383,18 +381,9 @@ generateBtn.addEventListener("click", async () => {
   }
 });
 
-function renderResults({ images, prompts, tipo, verificacion = [] }) {
+function renderResults({ images, tipo, verificacion = [] }) {
   resultsPanel.hidden = false;
   gallery.innerHTML = "";
-
-  if (prompts?.length) {
-    promptsDetails.hidden = false;
-    finalPrompts.textContent = prompts
-      .map((p, i) => (prompts.length > 1 ? `[${i + 1}] ${p}` : p))
-      .join("\n\n");
-  } else {
-    promptsDetails.hidden = true;
-  }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   images.forEach((src, i) => {

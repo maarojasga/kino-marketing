@@ -7,41 +7,67 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <h1>🎨 Kino <span>Generador de Imágenes IA</span></h1>
-    <p class="subtitle">Manual de marca + ejemplos + tema → imágenes y carruseles de contenido.</p>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">K</div>
+      <div class="brand-text">
+        <h1>Generador de Imágenes IA</h1>
+        <p>Manual de marca · Ejemplos · Tema → contenido listo para publicar</p>
+      </div>
+    </div>
+    <span class="pill pill-accent">✦ Impulsado por IA</span>
   </header>
 
   <main>
     <!-- 1 · Manual de marca -->
     <section class="panel">
-      <h2>1 · Manual de marca <small>(PDF, opcional)</small></h2>
+      <div class="section-head">
+        <span class="step-chip chip-blue">📄</span>
+        <div>
+          <h2>Manual de marca <span class="pill">PDF · Opcional</span></h2>
+          <p class="section-sub">Análisis automático de colores, tipografías y estilo</p>
+        </div>
+      </div>
+
       <div id="brandEmpty">
-        <p class="hint">Sube tu manual de marca en PDF. La IA extrae colores, tipografías y estilo, y los aplica a todas las generaciones.</p>
-        <button type="button" id="pickBrand" class="secondary">📄 Cargar manual de marca</button>
-        <input type="file" id="brandInput" accept="application/pdf" hidden />
+        <div class="upload-cta" id="brandCta">
+          <p class="hint">Sube tu manual una sola vez — la IA extrae el perfil de tu marca y lo aplica a todas las generaciones.</p>
+          <button type="button" id="pickBrand" class="secondary">📄 Cargar manual de marca</button>
+          <input type="file" id="brandInput" accept="application/pdf" hidden />
+        </div>
       </div>
       <div id="brandLoaded" hidden>
-        <p class="brand-file">✅ <strong id="brandName"></strong> — perfil de marca extraído</p>
+        <div class="brand-ok">
+          <span class="check-chip">✓</span>
+          <div>
+            <p class="brand-file"><strong id="brandName"></strong></p>
+            <p class="section-sub">Perfil de marca extraído y activo en cada generación</p>
+          </div>
+          <button type="button" id="deleteBrand" class="danger-link">Quitar</button>
+        </div>
         <details>
           <summary>Ver perfil de marca</summary>
           <pre id="brandProfile" class="brand-profile"></pre>
         </details>
-        <button type="button" id="deleteBrand" class="danger-link">Quitar manual</button>
       </div>
       <p id="brandStatus" class="status" hidden></p>
     </section>
 
     <!-- 2 · Grupos de ejemplos -->
     <section class="panel">
-      <h2>2 · Grupos de ejemplos <small>(categorías, opcional)</small></h2>
-      <p class="hint">Organiza tus ejemplos en categorías (ej: "posts educativos", "promociones") y elige cuál usar antes de generar.</p>
+      <div class="section-head">
+        <span class="step-chip chip-green">🗂</span>
+        <div>
+          <h2>Grupos de ejemplos <span class="pill">Categorías · Opcional</span></h2>
+          <p class="section-sub">Organiza referencias por categoría y elige cuál usar al generar</p>
+        </div>
+      </div>
 
       <div class="group-form">
         <input type="text" id="groupName" placeholder="Nombre del grupo (ej: promociones)" maxlength="60" />
         <button type="button" id="pickGroupFiles" class="secondary">🖼 Elegir imágenes</button>
         <input type="file" id="groupFileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
-        <button type="button" id="saveGroup" class="secondary" disabled>💾 Guardar grupo</button>
+        <button type="button" id="saveGroup" class="primary sm" disabled>Guardar grupo</button>
       </div>
       <div id="groupThumbs" class="thumbs"></div>
       <div id="groupList" class="group-list"></div>
@@ -50,18 +76,24 @@
 
     <!-- 3 · Crear contenido -->
     <section class="panel">
-      <h2>3 · Crear contenido</h2>
+      <div class="section-head">
+        <span class="step-chip chip-purple">✨</span>
+        <div>
+          <h2>Crear contenido <span class="pill pill-live">Tiempo real</span></h2>
+          <p class="section-sub">Elige tipo, formato y modo — la skill hace el resto</p>
+        </div>
+      </div>
 
       <div class="options">
         <label>
-          Tipo
+          <span class="opt-label">Tipo</span>
           <select id="tipo">
             <option value="imagen">Imagen suelta</option>
             <option value="carrusel">Carrusel</option>
           </select>
         </label>
         <label id="countWrap">
-          Variaciones
+          <span class="opt-label">Variaciones</span>
           <select id="count">
             <option value="1">1</option>
             <option value="2">2</option>
@@ -70,7 +102,7 @@
           </select>
         </label>
         <label id="slidesWrap" hidden>
-          Slides
+          <span class="opt-label">Slides</span>
           <select id="numSlides">
             <option value="2">2</option>
             <option value="3" selected>3</option>
@@ -82,7 +114,7 @@
           </select>
         </label>
         <label>
-          Formato
+          <span class="opt-label">Formato</span>
           <select id="aspectRatio">
             <option value="1:1">Cuadrado (1:1)</option>
             <option value="4:5">Vertical feed (4:5)</option>
@@ -92,7 +124,7 @@
           </select>
         </label>
         <label>
-          Categoría de ejemplos
+          <span class="opt-label">Categoría de ejemplos</span>
           <select id="groupSelect">
             <option value="">Sin ejemplos</option>
           </select>
@@ -104,14 +136,14 @@
           <input type="radio" name="modo" value="general" checked />
           <div>
             <strong>✨ General</strong>
-            <span>Todo se genera automáticamente: la IA decide textos e imágenes.</span>
+            <span>Todo automático: la IA decide textos e imágenes.</span>
           </div>
         </label>
         <label class="mode-option">
           <input type="radio" name="modo" value="control" />
           <div>
             <strong>🎛 Control total</strong>
-            <span>Tú decides el texto exacto y qué mostrar en cada imagen o slide.</span>
+            <span>Tú defines el texto exacto y qué mostrar en cada pieza.</span>
           </div>
         </label>
       </div>
@@ -121,23 +153,25 @@
 
       <div id="controlFields" class="control-fields" hidden></div>
 
-      <button id="generate" class="primary">✨ Generar</button>
+      <button id="generate" class="primary lg">✨ Generar contenido</button>
       <p id="status" class="status" hidden></p>
     </section>
 
     <!-- 4 · Resultados -->
     <section class="panel" id="resultsPanel" hidden>
-      <h2>4 · Resultados</h2>
-      <details id="promptsDetails" hidden>
-        <summary>Ver prompts construidos por la skill</summary>
-        <pre id="finalPrompts" class="brand-profile"></pre>
-      </details>
+      <div class="section-head">
+        <span class="step-chip chip-pink">🖼</span>
+        <div>
+          <h2>Resultados</h2>
+          <p class="section-sub">Texto verificado y corregido automáticamente · descarga individual</p>
+        </div>
+      </div>
       <div id="gallery" class="gallery"></div>
     </section>
   </main>
 
   <footer>
-    <p>Kino Marketing · Impulsado por Gemini</p>
+    <p>Kino Marketing · Generación y corrección con IA</p>
   </footer>
 
   <script src="app.js"></script>
