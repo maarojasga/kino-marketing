@@ -2,8 +2,7 @@ import "dotenv/config";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateImages, generateSequence } from "./lib/gemini.js";
-import { buildPrompts, claudeAvailable } from "./lib/claude.js";
+import { generateImages, generateSequence, buildPrompts, geminiAvailable } from "./lib/gemini.js";
 import { SKILL } from "./lib/skill.js";
 import { extractBrandProfile } from "./lib/brand.js";
 import { store } from "./lib/store.js";
@@ -19,8 +18,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/api/status", (_req, res) => {
   const brand = store.getBrand();
   res.json({
-    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-    claudeConfigured: claudeAvailable(),
+    geminiConfigured: geminiAvailable(),
     brand: brand ? { fileName: brand.fileName, updatedAt: brand.updatedAt } : null,
   });
 });
@@ -131,18 +129,14 @@ app.post("/api/generate", async (req, res) => {
       items: Array.isArray(items) ? items : [],
     };
 
-    // La skill construye los prompts (Claude si está disponible; si no, plantilla)
+    // La skill construye los prompts con Gemini; si falla, plantilla determinista
     let prompts;
     let enhanced = false;
-    if (claudeAvailable()) {
-      try {
-        prompts = await buildPrompts({ tema: tema.trim(), ...skillOptions });
-        enhanced = true;
-      } catch (err) {
-        console.warn("Skill con Claude falló, se usa la plantilla de respaldo:", err.message);
-      }
-    }
-    if (!prompts) {
+    try {
+      prompts = await buildPrompts({ tema: tema.trim(), ...skillOptions });
+      enhanced = true;
+    } catch (err) {
+      console.warn("Skill con Gemini falló, se usa la plantilla de respaldo:", err.message);
       prompts = SKILL.construirPrompts(tema.trim(), skillOptions);
     }
 
@@ -173,10 +167,7 @@ app.post("/api/generate", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`✅ Generador de imágenes escuchando en http://localhost:${PORT}`);
-  if (!process.env.GEMINI_API_KEY) {
+  if (!geminiAvailable()) {
     console.warn("⚠️  GEMINI_API_KEY no está configurada — la generación fallará hasta configurarla.");
-  }
-  if (!claudeAvailable()) {
-    console.log("ℹ️  ANTHROPIC_API_KEY no configurada — la skill usará su plantilla (sin análisis con Claude).");
   }
 });

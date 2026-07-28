@@ -7,14 +7,14 @@ Generador de contenido visual de marketing impulsado por IA. Cargas tu **manual 
 El usuario **solo escribe el tema** — toda la experiencia de dirección de arte vive en una **skill interna** (`lib/skill.js`) que construye los prompts completos por debajo.
 
 ```
-Manual de marca (PDF) ──► perfil de marca extraído por IA ─┐
-Grupos de ejemplos (categoría elegida) ────────────────────┤
-Tema + modo (General / Control total) ─────────────────────┴─► SKILL ─► prompts ─► Gemini ─► Imágenes o Carrusel
+Manual de marca (PDF) ──► perfil de marca extraído por Gemini ─┐
+Grupos de ejemplos (categoría elegida) ────────────────────────┤
+Tema + modo (General / Control total) ─────────────────────────┴─► SKILL ─► prompts ─► Gemini ─► Imágenes o Carrusel
 ```
 
 ### Funcionalidades
 
-1. **Manual de marca (PDF)** — Lo subes una vez; la IA (Claude o Gemini) extrae un perfil de marca (colores exactos, tipografías, logo, tono, reglas) que se aplica automáticamente a todas las generaciones.
+1. **Manual de marca (PDF)** — Lo subes una vez; Gemini extrae un perfil de marca (colores exactos, tipografías, logo, tono, reglas) que se aplica automáticamente a todas las generaciones.
 2. **Grupos de ejemplos por categoría** — Organiza tus referencias en grupos con nombre (ej: *"posts educativos"*, *"promociones"*). Antes de generar eliges qué categoría usar.
 3. **Imagen suelta o carrusel** — Las imágenes sueltas admiten 1–4 variaciones. Los carruseles (2–8 slides) se generan con arco narrativo (portada/gancho → desarrollo → cierre con CTA) y consistencia visual: cada slide usa la anterior como ancla de estilo.
 4. **Dos modos de generación**:
@@ -25,13 +25,12 @@ Tema + modo (General / Control total) ──────────────
 
 - Node.js 18 o superior
 - Una API key de **Google AI Studio** (gratuita): https://aistudio.google.com/apikey
-- *(Opcional)* Una API key de **Anthropic**: https://platform.claude.com/ — mejora la skill (análisis profundo de referencias y manual con Claude)
 
 ## Instalación
 
 ```bash
 npm install
-cp .env.example .env   # agrega tu GEMINI_API_KEY (y ANTHROPIC_API_KEY opcional)
+cp .env.example .env   # agrega tu GEMINI_API_KEY
 npm start              # abre http://localhost:3000
 ```
 
@@ -85,8 +84,7 @@ Respuesta: `{ images: [...], prompts: [...], tipo, enhanced, usedBrandProfile }`
 ├── server.js          # Servidor Express + endpoints
 ├── lib/
 │   ├── skill.js       # SKILL de marketing: instrucciones + plantillas (imagen y carrusel)
-│   ├── claude.js      # Ejecuta la skill con Claude (claude-opus-5, salida estructurada)
-│   ├── gemini.js      # Generación de imágenes y secuencias (gemini-2.5-flash-image)
+│   ├── gemini.js      # Todo Gemini: skill, generación de imágenes/carruseles y análisis del manual
 │   ├── brand.js       # Análisis del manual de marca (PDF → perfil de marca)
 │   └── store.js       # Persistencia local (data/store.json): marca + grupos
 └── public/            # Interfaz web (español)
@@ -97,4 +95,4 @@ Respuesta: `{ images: [...], prompts: [...], tipo, enhanced, usedBrandProfile }`
 - El perfil de marca y los grupos se guardan en `data/` (fuera de git) y sobreviven reinicios del servidor.
 - Las imágenes de referencia se redimensionan en el navegador (máx. 1568 px) antes de enviarse.
 - Las claves API viven solo en el servidor (`.env`); nunca se exponen al navegador.
-- Si Claude falla o no está configurado, la skill usa su plantilla determinista — la generación nunca se bloquea.
+- Si la construcción del prompt con Gemini falla, la skill usa su plantilla determinista — la generación nunca se bloquea.
