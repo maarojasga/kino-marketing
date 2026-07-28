@@ -119,7 +119,7 @@ function renderThumbs() {
 generateBtn.addEventListener("click", async () => {
   const prompt = promptEl.value.trim();
   if (!prompt) {
-    setStatus("Escribe un prompt antes de generar.", "error");
+    setStatus("Escribe el tema antes de generar.", "error");
     promptEl.focus();
     return;
   }
@@ -158,9 +158,10 @@ function renderResults({ images, finalPrompt, enhanced }) {
   resultsPanel.hidden = false;
   gallery.innerHTML = "";
 
-  if (enhanced && finalPrompt) {
+  if (finalPrompt) {
     finalPromptEl.hidden = false;
-    finalPromptEl.textContent = `Prompt mejorado por Claude:\n${finalPrompt}`;
+    const origen = enhanced ? "skill con Claude" : "skill (plantilla)";
+    finalPromptEl.textContent = `Prompt construido por la ${origen}:\n${finalPrompt}`;
   } else {
     finalPromptEl.hidden = true;
   }

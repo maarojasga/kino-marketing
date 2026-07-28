@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateImages } from "./lib/gemini.js";
 import { enhancePrompt, claudeAvailable } from "./lib/claude.js";
+import { SKILL } from "./lib/skill.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -23,15 +24,15 @@ app.get("/api/status", (_req, res) => {
 app.post("/api/generate", async (req, res) => {
   try {
     const {
-      prompt,
+      prompt, // compatibilidad: el campo se llama "prompt" pero ahora solo lleva el TEMA
       referenceImages = [],
       count = 1,
       aspectRatio = "1:1",
-      enhanceWithClaude = false,
+      enhanceWithClaude = true,
     } = req.body || {};
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return res.status(400).json({ error: "El prompt es obligatorio." });
+      return res.status(400).json({ error: "El tema es obligatorio." });
     }
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
@@ -46,15 +47,23 @@ app.post("/api/generate", async (req, res) => {
 
     const numImages = Math.min(Math.max(parseInt(count, 10) || 1, 1), 4);
 
-    let finalPrompt = prompt.trim();
+    // La skill construye el prompt completo por debajo: el usuario solo da el TEMA.
+    const tema = prompt.trim();
+    let finalPrompt;
     let enhanced = false;
     if (enhanceWithClaude && claudeAvailable()) {
       try {
-        finalPrompt = await enhancePrompt(prompt.trim(), referenceImages);
+        finalPrompt = await enhancePrompt(tema, referenceImages, { aspectRatio });
         enhanced = true;
       } catch (err) {
-        console.warn("Mejora de prompt con Claude falló, se usa el prompt original:", err.message);
+        console.warn("Skill con Claude falló, se usa la plantilla de respaldo:", err.message);
       }
+    }
+    if (!finalPrompt) {
+      finalPrompt = SKILL.construirPrompt(tema, {
+        aspectRatio,
+        hayReferencias: referenceImages.length > 0,
+      });
     }
 
     const images = await generateImages({

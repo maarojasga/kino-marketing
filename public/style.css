@@ -69,6 +69,12 @@ main {
   font-weight: 400;
 }
 
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
 .dropzone {
   border: 2px dashed var(--border);
   border-radius: 10px;
