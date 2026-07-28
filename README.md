@@ -20,7 +20,8 @@ Tema + modo (General / Control total) ──────────────
 4. **Dos modos de generación**:
    - **✨ General**: todo se genera automáticamente — la IA decide composición y textos.
    - **🎛 Control total**: tú defines por cada imagen/slide el **texto exacto** que debe aparecer (o ninguno) y **qué mostrar**.
-5. **Skill correctora de ortografía** (`lib/corrector.js`) — Cada imagen generada pasa por un ciclo que no se rinde hasta agotar estrategias:
+5. **Skill de identidad visual** (`lib/identidadVisual.js`) — Cuando hay imágenes de referencia (grupo elegido y/o referencias puntuales), su paleta de colores y su tipografía dejan de ser una sugerencia: son un requisito obligatorio que toda pieza generada debe cumplir. Esta skill centraliza esa regla y la aplica en los tres puntos donde se generan prompts o imágenes (skill de contenido y llamadas directas a Gemini), para que nunca quede como texto duplicado ni se diluya en uno solo de ellos.
+6. **Skill correctora de ortografía** (`lib/corrector.js`) — Cada imagen generada pasa por un ciclo que no se rinde hasta agotar estrategias:
    - **Revisar**: transcribe letra por letra todo el texto visible, detecta el idioma (español o inglés) y verifica estrictamente ortografía, tildes y palabras deformadas (errores típicos de IA como *"Inscrébte"* en vez de *"Inscríbete"*).
    - **Corregir por edición**: si hay errores, edita la imagen para arreglar solo el texto, manteniendo diseño, colores y composición idénticos (hasta 2 ediciones).
    - **Corregir por regeneración**: si la edición no basta, regenera la pieza desde el prompt con los textos correctos como instrucción explícita, carácter por carácter (hasta 2 regeneraciones).
@@ -90,6 +91,7 @@ Respuesta: `{ images: [...], prompts: [...], tipo, enhanced, usedBrandProfile }`
 ├── server.js          # Servidor Express + endpoints
 ├── lib/
 │   ├── skill.js       # SKILL de marketing: instrucciones + plantillas (imagen y carrusel)
+│   ├── identidadVisual.js  # SKILL de identidad visual: paleta y tipografía de referencias, obligatorias
 │   ├── corrector.js   # SKILL correctora: revisa ortografía y corrige editando la imagen
 │   ├── gemini.js      # Todo Gemini: skill, generación/edición de imágenes y análisis del manual
 │   ├── brand.js       # Análisis del manual de marca (PDF → perfil de marca)
