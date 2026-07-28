@@ -2,36 +2,100 @@ import "dotenv/config";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateImages } from "./lib/gemini.js";
-import { enhancePrompt, claudeAvailable } from "./lib/claude.js";
+import { generateImages, generateSequence } from "./lib/gemini.js";
+import { buildPrompts, claudeAvailable } from "./lib/claude.js";
 import { SKILL } from "./lib/skill.js";
+import { extractBrandProfile } from "./lib/brand.js";
+import { store } from "./lib/store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Las imágenes de referencia viajan en base64 dentro del JSON
-app.use(express.json({ limit: "50mb" }));
+// Imágenes y PDFs viajan en base64 dentro del JSON
+app.use(express.json({ limit: "80mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/status", (_req, res) => {
+  const brand = store.getBrand();
   res.json({
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     claudeConfigured: claudeAvailable(),
+    brand: brand ? { fileName: brand.fileName, updatedAt: brand.updatedAt } : null,
   });
 });
+
+// --- Manual de marca ---
+
+app.post("/api/brand-manual", async (req, res) => {
+  try {
+    const { fileName, pdf } = req.body || {};
+    if (!pdf) return res.status(400).json({ error: "Falta el PDF del manual de marca." });
+
+    const profile = await extractBrandProfile(pdf);
+    const brand = store.setBrand({ fileName: fileName || "manual.pdf", profile });
+    res.json({ fileName: brand.fileName, profile: brand.profile, updatedAt: brand.updatedAt });
+  } catch (err) {
+    console.error("Error analizando manual de marca:", err);
+    res.status(500).json({ error: err.message || "No se pudo analizar el manual." });
+  }
+});
+
+app.get("/api/brand-manual", (_req, res) => {
+  const brand = store.getBrand();
+  if (!brand) return res.status(404).json({ error: "No hay manual de marca cargado." });
+  res.json(brand);
+});
+
+app.delete("/api/brand-manual", (_req, res) => {
+  store.clearBrand();
+  res.json({ ok: true });
+});
+
+// --- Grupos de ejemplos (categorías) ---
+
+app.get("/api/groups", (_req, res) => {
+  res.json({ groups: store.listGroups() });
+});
+
+app.post("/api/groups", (req, res) => {
+  const { name, images } = req.body || {};
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ error: "El grupo necesita un nombre." });
+  }
+  if (!Array.isArray(images) || images.length === 0) {
+    return res.status(400).json({ error: "El grupo necesita al menos una imagen." });
+  }
+  if (images.length > 10) {
+    return res.status(400).json({ error: "Máximo 10 imágenes por grupo." });
+  }
+  const group = store.addGroup(name.trim(), images);
+  res.json(group);
+});
+
+app.delete("/api/groups/:id", (req, res) => {
+  const ok = store.deleteGroup(req.params.id);
+  if (!ok) return res.status(404).json({ error: "Grupo no encontrado." });
+  res.json({ ok: true });
+});
+
+// --- Generación ---
 
 app.post("/api/generate", async (req, res) => {
   try {
     const {
-      prompt, // compatibilidad: el campo se llama "prompt" pero ahora solo lleva el TEMA
-      referenceImages = [],
-      count = 1,
+      tema,
+      tipo = "imagen", // "imagen" | "carrusel"
+      count = 1, // imágenes sueltas: variaciones
+      numSlides = 3, // carrusel: nº de slides
       aspectRatio = "1:1",
-      enhanceWithClaude = true,
+      groupId = null, // categoría de ejemplos a usar
+      modo = "general", // "general" | "control"
+      items = [], // modo control: [{ texto, descripcion }]
+      referenceImages = [], // referencias adicionales puntuales (opcional)
     } = req.body || {};
 
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    if (!tema || typeof tema !== "string" || !tema.trim()) {
       return res.status(400).json({ error: "El tema es obligatorio." });
     }
     if (!process.env.GEMINI_API_KEY) {
@@ -39,48 +103,68 @@ app.post("/api/generate", async (req, res) => {
         error: "Falta configurar GEMINI_API_KEY en el archivo .env del servidor.",
       });
     }
-    if (referenceImages.length > 6) {
-      return res
-        .status(400)
-        .json({ error: "Máximo 6 imágenes de referencia por solicitud." });
+
+    // Referencias: grupo elegido + referencias puntuales
+    let refs = [...referenceImages];
+    if (groupId) {
+      const group = store.getGroup(groupId);
+      if (!group) return res.status(400).json({ error: "El grupo de ejemplos elegido no existe." });
+      refs = [...group.images, ...refs];
     }
+    refs = refs.slice(0, 6);
 
-    const numImages = Math.min(Math.max(parseInt(count, 10) || 1, 1), 4);
+    const brand = store.getBrand();
+    const brandProfile = brand?.profile || null;
 
-    // La skill construye el prompt completo por debajo: el usuario solo da el TEMA.
-    const tema = prompt.trim();
-    let finalPrompt;
+    const n = tipo === "carrusel"
+      ? Math.min(Math.max(parseInt(numSlides, 10) || 3, 2), 8)
+      : Math.min(Math.max(parseInt(count, 10) || 1, 1), 4);
+
+    const skillOptions = {
+      tipo,
+      numSlides: n,
+      aspectRatio,
+      referenceImages: refs,
+      hayReferencias: refs.length > 0,
+      brandProfile,
+      modo: modo === "control" ? "control" : "general",
+      items: Array.isArray(items) ? items : [],
+    };
+
+    // La skill construye los prompts (Claude si está disponible; si no, plantilla)
+    let prompts;
     let enhanced = false;
-    if (enhanceWithClaude && claudeAvailable()) {
+    if (claudeAvailable()) {
       try {
-        finalPrompt = await enhancePrompt(tema, referenceImages, { aspectRatio });
+        prompts = await buildPrompts({ tema: tema.trim(), ...skillOptions });
         enhanced = true;
       } catch (err) {
         console.warn("Skill con Claude falló, se usa la plantilla de respaldo:", err.message);
       }
     }
-    if (!finalPrompt) {
-      finalPrompt = SKILL.construirPrompt(tema, {
+    if (!prompts) {
+      prompts = SKILL.construirPrompts(tema.trim(), skillOptions);
+    }
+
+    let images;
+    if (tipo === "carrusel") {
+      images = await generateSequence({ prompts, referenceImages: refs, aspectRatio });
+    } else {
+      images = await generateImages({
+        prompt: prompts[0],
+        referenceImages: refs,
+        count: n,
         aspectRatio,
-        hayReferencias: referenceImages.length > 0,
       });
     }
 
-    const images = await generateImages({
-      prompt: finalPrompt,
-      referenceImages,
-      count: numImages,
-      aspectRatio,
-    });
-
-    if (images.length === 0) {
+    if (!images || images.length === 0) {
       return res.status(502).json({
-        error:
-          "El modelo no devolvió imágenes. Intenta reformular el prompt o usar menos referencias.",
+        error: "El modelo no devolvió imágenes. Intenta reformular el tema o usar menos referencias.",
       });
     }
 
-    res.json({ images, finalPrompt, enhanced });
+    res.json({ images, prompts, enhanced, tipo, usedBrandProfile: Boolean(brandProfile) });
   } catch (err) {
     console.error("Error en /api/generate:", err);
     res.status(500).json({ error: err.message || "Error interno del servidor." });
@@ -93,6 +177,6 @@ app.listen(PORT, () => {
     console.warn("⚠️  GEMINI_API_KEY no está configurada — la generación fallará hasta configurarla.");
   }
   if (!claudeAvailable()) {
-    console.log("ℹ️  ANTHROPIC_API_KEY no configurada — la mejora de prompts con Claude estará desactivada (opcional).");
+    console.log("ℹ️  ANTHROPIC_API_KEY no configurada — la skill usará su plantilla (sin análisis con Claude).");
   }
 });

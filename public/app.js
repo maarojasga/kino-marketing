@@ -1,76 +1,63 @@
-const MAX_REFS = 6;
-const MAX_DIM = 1568; // se redimensiona en el navegador para aligerar la petición
+const MAX_GROUP_IMAGES = 10;
+const MAX_DIM = 1568; // se redimensiona en el navegador para aligerar las peticiones
 
-const dropzone = document.getElementById("dropzone");
-const fileInput = document.getElementById("fileInput");
-const pickFiles = document.getElementById("pickFiles");
-const thumbs = document.getElementById("thumbs");
-const promptEl = document.getElementById("prompt");
-const countEl = document.getElementById("count");
-const aspectEl = document.getElementById("aspectRatio");
-const enhanceLabel = document.getElementById("enhanceLabel");
-const enhanceEl = document.getElementById("enhance");
-const generateBtn = document.getElementById("generate");
-const statusEl = document.getElementById("status");
-const resultsPanel = document.getElementById("resultsPanel");
-const finalPromptEl = document.getElementById("finalPrompt");
-const gallery = document.getElementById("gallery");
+// --- Referencias a elementos ---
+const $ = (id) => document.getElementById(id);
 
-/** @type {string[]} data URLs de las imágenes de referencia */
-let referenceImages = [];
+const brandEmpty = $("brandEmpty");
+const brandLoaded = $("brandLoaded");
+const brandInput = $("brandInput");
+const pickBrand = $("pickBrand");
+const brandName = $("brandName");
+const brandProfile = $("brandProfile");
+const deleteBrand = $("deleteBrand");
+const brandStatus = $("brandStatus");
 
-// Mostrar el toggle de Claude solo si el servidor lo tiene configurado
-fetch("/api/status")
-  .then((r) => r.json())
-  .then((s) => {
-    if (s.claudeConfigured) enhanceLabel.hidden = false;
-    if (!s.geminiConfigured) {
-      setStatus("⚠️ El servidor no tiene GEMINI_API_KEY configurada. Revisa el archivo .env.", "error");
-    }
-  })
-  .catch(() => {});
+const groupName = $("groupName");
+const pickGroupFiles = $("pickGroupFiles");
+const groupFileInput = $("groupFileInput");
+const saveGroup = $("saveGroup");
+const groupThumbs = $("groupThumbs");
+const groupList = $("groupList");
+const groupStatus = $("groupStatus");
+const groupSelect = $("groupSelect");
 
-// --- Carga de imágenes de referencia ---
+const tipoEl = $("tipo");
+const countWrap = $("countWrap");
+const countEl = $("count");
+const slidesWrap = $("slidesWrap");
+const numSlidesEl = $("numSlides");
+const aspectEl = $("aspectRatio");
+const temaEl = $("tema");
+const controlFields = $("controlFields");
+const generateBtn = $("generate");
+const statusEl = $("status");
+const resultsPanel = $("resultsPanel");
+const promptsDetails = $("promptsDetails");
+const finalPrompts = $("finalPrompts");
+const gallery = $("gallery");
 
-pickFiles.addEventListener("click", () => fileInput.click());
-dropzone.addEventListener("click", (e) => {
-  if (e.target === dropzone || e.target.tagName === "P") fileInput.click();
-});
-fileInput.addEventListener("change", () => addFiles(fileInput.files));
+/** Imágenes pendientes para el grupo en creación */
+let pendingGroupImages = [];
 
-["dragenter", "dragover"].forEach((ev) =>
-  dropzone.addEventListener(ev, (e) => {
-    e.preventDefault();
-    dropzone.classList.add("dragover");
-  })
-);
-["dragleave", "drop"].forEach((ev) =>
-  dropzone.addEventListener(ev, (e) => {
-    e.preventDefault();
-    dropzone.classList.remove("dragover");
-  })
-);
-dropzone.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+// ============ Utilidades ============
 
-async function addFiles(fileList) {
-  const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
-  for (const file of files) {
-    if (referenceImages.length >= MAX_REFS) {
-      setStatus(`Máximo ${MAX_REFS} imágenes de referencia.`, "error");
-      break;
-    }
-    try {
-      const dataUrl = await resizeToDataUrl(file);
-      referenceImages.push(dataUrl);
-    } catch {
-      setStatus(`No se pudo leer "${file.name}".`, "error");
-    }
-  }
-  fileInput.value = "";
-  renderThumbs();
+function setStatus(el, msg, kind) {
+  el.hidden = !msg;
+  el.textContent = msg;
+  el.className = `status ${kind || ""}`.trim();
 }
 
-function resizeToDataUrl(file) {
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("no se pudo leer el archivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function resizeImageToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -94,38 +81,276 @@ function resizeToDataUrl(file) {
   });
 }
 
-function renderThumbs() {
-  thumbs.innerHTML = "";
-  referenceImages.forEach((src, i) => {
+// ============ Estado inicial ============
+
+async function init() {
+  try {
+    const s = await fetch("/api/status").then((r) => r.json());
+    if (!s.geminiConfigured) {
+      setStatus(statusEl, "⚠️ El servidor no tiene GEMINI_API_KEY configurada. Revisa el archivo .env.", "error");
+    }
+    if (s.brand) {
+      const brand = await fetch("/api/brand-manual").then((r) => r.json());
+      showBrand(brand);
+    }
+  } catch {}
+  await refreshGroups();
+  renderControlFields();
+}
+init();
+
+// ============ 1 · Manual de marca ============
+
+pickBrand.addEventListener("click", () => brandInput.click());
+
+brandInput.addEventListener("change", async () => {
+  const file = brandInput.files[0];
+  brandInput.value = "";
+  if (!file) return;
+  if (file.type !== "application/pdf") {
+    setStatus(brandStatus, "El manual debe ser un PDF.", "error");
+    return;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    setStatus(brandStatus, "El PDF supera 25 MB. Usa una versión más ligera.", "error");
+    return;
+  }
+
+  setStatus(brandStatus, "Analizando el manual de marca con IA…", "");
+  brandStatus.classList.add("loading");
+  pickBrand.disabled = true;
+
+  try {
+    const pdf = await fileToDataUrl(file);
+    const res = await fetch("/api/brand-manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileName: file.name, pdf }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    showBrand(data);
+    setStatus(brandStatus, "✅ Perfil de marca extraído. Se aplicará a todas las generaciones.", "ok");
+  } catch (err) {
+    setStatus(brandStatus, `❌ ${err.message}`, "error");
+  } finally {
+    brandStatus.classList.remove("loading");
+    pickBrand.disabled = false;
+  }
+});
+
+deleteBrand.addEventListener("click", async () => {
+  await fetch("/api/brand-manual", { method: "DELETE" });
+  brandLoaded.hidden = true;
+  brandEmpty.hidden = false;
+  setStatus(brandStatus, "Manual eliminado.", "");
+});
+
+function showBrand(brand) {
+  brandName.textContent = brand.fileName;
+  brandProfile.textContent = brand.profile;
+  brandEmpty.hidden = true;
+  brandLoaded.hidden = false;
+}
+
+// ============ 2 · Grupos de ejemplos ============
+
+pickGroupFiles.addEventListener("click", () => groupFileInput.click());
+
+groupFileInput.addEventListener("change", async () => {
+  const files = Array.from(groupFileInput.files).filter((f) => f.type.startsWith("image/"));
+  groupFileInput.value = "";
+  for (const file of files) {
+    if (pendingGroupImages.length >= MAX_GROUP_IMAGES) {
+      setStatus(groupStatus, `Máximo ${MAX_GROUP_IMAGES} imágenes por grupo.`, "error");
+      break;
+    }
+    try {
+      pendingGroupImages.push(await resizeImageToDataUrl(file));
+    } catch {
+      setStatus(groupStatus, `No se pudo leer "${file.name}".`, "error");
+    }
+  }
+  renderGroupThumbs();
+  updateSaveGroupState();
+});
+
+groupName.addEventListener("input", updateSaveGroupState);
+
+function updateSaveGroupState() {
+  saveGroup.disabled = !(groupName.value.trim() && pendingGroupImages.length > 0);
+}
+
+function renderGroupThumbs() {
+  groupThumbs.innerHTML = "";
+  pendingGroupImages.forEach((src, i) => {
     const div = document.createElement("div");
     div.className = "thumb";
     const img = document.createElement("img");
     img.src = src;
-    img.alt = `Referencia ${i + 1}`;
     const btn = document.createElement("button");
     btn.textContent = "✕";
-    btn.title = "Quitar";
     btn.addEventListener("click", () => {
-      referenceImages.splice(i, 1);
-      renderThumbs();
+      pendingGroupImages.splice(i, 1);
+      renderGroupThumbs();
+      updateSaveGroupState();
     });
     div.append(img, btn);
-    thumbs.appendChild(div);
+    groupThumbs.appendChild(div);
   });
 }
 
-// --- Generación ---
+saveGroup.addEventListener("click", async () => {
+  saveGroup.disabled = true;
+  try {
+    const res = await fetch("/api/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: groupName.value.trim(), images: pendingGroupImages }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    setStatus(groupStatus, `✅ Grupo "${data.name}" guardado (${data.count} imágenes).`, "ok");
+    groupName.value = "";
+    pendingGroupImages = [];
+    renderGroupThumbs();
+    await refreshGroups(data.id);
+  } catch (err) {
+    setStatus(groupStatus, `❌ ${err.message}`, "error");
+  } finally {
+    updateSaveGroupState();
+  }
+});
 
-generateBtn.addEventListener("click", async () => {
-  const prompt = promptEl.value.trim();
-  if (!prompt) {
-    setStatus("Escribe el tema antes de generar.", "error");
-    promptEl.focus();
+async function refreshGroups(selectId) {
+  try {
+    const { groups } = await fetch("/api/groups").then((r) => r.json());
+
+    // Lista visual
+    groupList.innerHTML = "";
+    for (const g of groups) {
+      const card = document.createElement("div");
+      card.className = "group-card";
+      if (g.preview) {
+        const img = document.createElement("img");
+        img.src = g.preview;
+        card.appendChild(img);
+      }
+      const info = document.createElement("div");
+      info.innerHTML = `<strong>${escapeHtml(g.name)}</strong><br><small>${g.count} imagen(es)</small>`;
+      const del = document.createElement("button");
+      del.className = "danger-link";
+      del.textContent = "Eliminar";
+      del.addEventListener("click", async () => {
+        await fetch(`/api/groups/${g.id}`, { method: "DELETE" });
+        refreshGroups();
+      });
+      card.append(info, del);
+      groupList.appendChild(card);
+    }
+
+    // Selector de categoría
+    const current = selectId || groupSelect.value;
+    groupSelect.innerHTML = '<option value="">Sin ejemplos</option>';
+    for (const g of groups) {
+      const opt = document.createElement("option");
+      opt.value = g.id;
+      opt.textContent = `${g.name} (${g.count})`;
+      groupSelect.appendChild(opt);
+    }
+    if ([...groupSelect.options].some((o) => o.value === current)) {
+      groupSelect.value = current;
+    }
+  } catch {}
+}
+
+function escapeHtml(s) {
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ============ 3 · Crear contenido ============
+
+tipoEl.addEventListener("change", () => {
+  const esCarrusel = tipoEl.value === "carrusel";
+  countWrap.hidden = esCarrusel;
+  slidesWrap.hidden = !esCarrusel;
+  renderControlFields();
+});
+numSlidesEl.addEventListener("change", renderControlFields);
+document.querySelectorAll('input[name="modo"]').forEach((radio) =>
+  radio.addEventListener("change", renderControlFields)
+);
+
+function currentMode() {
+  return document.querySelector('input[name="modo"]:checked')?.value || "general";
+}
+
+function renderControlFields() {
+  const modo = currentMode();
+  if (modo !== "control") {
+    controlFields.hidden = true;
+    controlFields.innerHTML = "";
     return;
   }
 
+  const esCarrusel = tipoEl.value === "carrusel";
+  const n = esCarrusel ? parseInt(numSlidesEl.value, 10) : 1;
+
+  // Conservar lo ya escrito al re-renderizar
+  const previos = [...controlFields.querySelectorAll(".control-item")].map((item) => ({
+    texto: item.querySelector(".ctl-texto").value,
+    descripcion: item.querySelector(".ctl-desc").value,
+  }));
+
+  controlFields.hidden = false;
+  controlFields.innerHTML = "";
+  for (let i = 0; i < n; i++) {
+    const item = document.createElement("div");
+    item.className = "control-item";
+    const titulo = esCarrusel ? `Slide ${i + 1}` : "Imagen";
+    item.innerHTML = `
+      <h3>${titulo}</h3>
+      <label>Texto exacto en la imagen <small>(vacío = sin texto)</small>
+        <input type="text" class="ctl-texto" maxlength="120" placeholder='Ej: "20% OFF solo hoy"' value="${escapeAttr(previos[i]?.texto || "")}" />
+      </label>
+      <label>Qué mostrar <small>(opcional)</small>
+        <input type="text" class="ctl-desc" maxlength="200" placeholder="Ej: doctora sonriendo en consultorio moderno" value="${escapeAttr(previos[i]?.descripcion || "")}" />
+      </label>`;
+    controlFields.appendChild(item);
+  }
+}
+
+function escapeAttr(s) {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function collectItems() {
+  return [...controlFields.querySelectorAll(".control-item")].map((item) => ({
+    texto: item.querySelector(".ctl-texto").value.trim(),
+    descripcion: item.querySelector(".ctl-desc").value.trim(),
+  }));
+}
+
+// ============ Generación ============
+
+generateBtn.addEventListener("click", async () => {
+  const tema = temaEl.value.trim();
+  if (!tema) {
+    setStatus(statusEl, "Escribe el tema antes de generar.", "error");
+    temaEl.focus();
+    return;
+  }
+
+  const tipo = tipoEl.value;
+  const modo = currentMode();
+
   generateBtn.disabled = true;
-  setStatus("Generando imágenes… esto puede tardar hasta un minuto.", "");
+  const msg = tipo === "carrusel"
+    ? "Generando carrusel… las slides se crean en orden, puede tardar unos minutos."
+    : "Generando imágenes… esto puede tardar hasta un minuto.";
+  setStatus(statusEl, msg, "");
   statusEl.classList.add("loading");
 
   try {
@@ -133,11 +358,14 @@ generateBtn.addEventListener("click", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt,
-        referenceImages,
+        tema,
+        tipo,
         count: parseInt(countEl.value, 10),
+        numSlides: parseInt(numSlidesEl.value, 10),
         aspectRatio: aspectEl.value,
-        enhanceWithClaude: !enhanceLabel.hidden && enhanceEl.checked,
+        groupId: groupSelect.value || null,
+        modo,
+        items: modo === "control" ? collectItems() : [],
       }),
     });
 
@@ -145,25 +373,27 @@ generateBtn.addEventListener("click", async () => {
     if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
 
     renderResults(data);
-    setStatus(`✅ ${data.images.length} imagen(es) generada(s).`, "ok");
+    const nota = data.usedBrandProfile ? " (con perfil de marca)" : "";
+    setStatus(statusEl, `✅ ${data.images.length} imagen(es) generada(s)${nota}.`, "ok");
   } catch (err) {
-    setStatus(`❌ ${err.message}`, "error");
+    setStatus(statusEl, `❌ ${err.message}`, "error");
   } finally {
     statusEl.classList.remove("loading");
     generateBtn.disabled = false;
   }
 });
 
-function renderResults({ images, finalPrompt, enhanced }) {
+function renderResults({ images, prompts, tipo }) {
   resultsPanel.hidden = false;
   gallery.innerHTML = "";
 
-  if (finalPrompt) {
-    finalPromptEl.hidden = false;
-    const origen = enhanced ? "skill con Claude" : "skill (plantilla)";
-    finalPromptEl.textContent = `Prompt construido por la ${origen}:\n${finalPrompt}`;
+  if (prompts?.length) {
+    promptsDetails.hidden = false;
+    finalPrompts.textContent = prompts
+      .map((p, i) => (prompts.length > 1 ? `[${i + 1}] ${p}` : p))
+      .join("\n\n");
   } else {
-    finalPromptEl.hidden = true;
+    promptsDetails.hidden = true;
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -171,8 +401,14 @@ function renderResults({ images, finalPrompt, enhanced }) {
     const fig = document.createElement("figure");
     const img = document.createElement("img");
     img.src = src;
-    img.alt = `Imagen generada ${i + 1}`;
+    img.alt = tipo === "carrusel" ? `Slide ${i + 1}` : `Imagen generada ${i + 1}`;
     const cap = document.createElement("figcaption");
+    if (tipo === "carrusel") {
+      const badge = document.createElement("span");
+      badge.className = "slide-badge";
+      badge.textContent = `Slide ${i + 1}/${images.length}`;
+      cap.appendChild(badge);
+    }
     const link = document.createElement("a");
     link.href = src;
     link.download = `kino-${stamp}-${i + 1}.png`;
@@ -183,10 +419,4 @@ function renderResults({ images, finalPrompt, enhanced }) {
   });
 
   resultsPanel.scrollIntoView({ behavior: "smooth" });
-}
-
-function setStatus(msg, kind) {
-  statusEl.hidden = !msg;
-  statusEl.textContent = msg;
-  statusEl.className = `status ${kind || ""}`.trim();
 }
