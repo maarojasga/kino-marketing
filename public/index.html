@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kino · Generador de Imágenes IA</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🎨 Kino <span>Generador de Imágenes IA</span></h1>
+    <p class="subtitle">Sube ejemplos de tu marca, escribe un prompt y genera imágenes de contenido.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>1 · Imágenes de ejemplo <small>(opcional, máx. 6)</small></h2>
+      <div id="dropzone" class="dropzone">
+        <p>Arrastra imágenes aquí o <button type="button" id="pickFiles" class="link-btn">selecciónalas</button></p>
+        <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+      </div>
+      <div id="thumbs" class="thumbs"></div>
+    </section>
+
+    <section class="panel">
+      <h2>2 · Prompt</h2>
+      <textarea id="prompt" rows="4" placeholder="Ej: Post para Instagram anunciando 20% de descuento en la nueva colección de verano, estilo fresco y minimalista"></textarea>
+
+      <div class="options">
+        <label>
+          Cantidad
+          <select id="count">
+            <option value="1">1 imagen</option>
+            <option value="2">2 imágenes</option>
+            <option value="3">3 imágenes</option>
+            <option value="4">4 imágenes</option>
+          </select>
+        </label>
+        <label>
+          Formato
+          <select id="aspectRatio">
+            <option value="1:1">Cuadrado (1:1)</option>
+            <option value="4:5">Vertical feed (4:5)</option>
+            <option value="9:16">Historia / Reel (9:16)</option>
+            <option value="16:9">Horizontal (16:9)</option>
+            <option value="3:4">Retrato (3:4)</option>
+          </select>
+        </label>
+        <label class="toggle" id="enhanceLabel" hidden>
+          <input type="checkbox" id="enhance" checked />
+          Mejorar prompt con Claude
+        </label>
+      </div>
+
+      <button id="generate" class="primary">✨ Generar imágenes</button>
+      <p id="status" class="status" hidden></p>
+    </section>
+
+    <section class="panel" id="resultsPanel" hidden>
+      <h2>3 · Resultados</h2>
+      <p id="finalPrompt" class="final-prompt" hidden></p>
+      <div id="gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Kino Marketing · Generación con Gemini · Mejora de prompts con Claude</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
